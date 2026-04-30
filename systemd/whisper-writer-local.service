@@ -1,0 +1,22 @@
+# WhisperWriter running locally (no remote transcription server).
+# Loads the Whisper model in-process; needs adequate CPU/GPU on this machine.
+#
+# Install:
+#   cp systemd/whisper-writer-local.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now whisper-writer-local.service
+
+[Unit]
+Description=WhisperWriter (local transcription)
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/utils/whisper-writer
+ExecStart=%h/.local/bin/uv run python run.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
