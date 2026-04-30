@@ -1,0 +1,27 @@
+# SSH tunnel: forwards localhost:47892 on this machine to localhost:47892 on gratitude,
+# where the WhisperWriter transcription server is running.
+#
+# Install (laptop only):
+#   cp systemd/whisper-writer-tunnel.service ~/.config/systemd/user/
+#   systemctl --user enable --now whisper-writer-tunnel.service
+#
+# Requires autossh: sudo apt install autossh
+# Requires 'gratitude' to be defined in ~/.ssh/config with your key.
+
+[Unit]
+Description=SSH tunnel to gratitude for WhisperWriter transcription
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/autossh -M 0 -N \
+    -o ExitOnForwardFailure=yes \
+    -o ServerAliveInterval=30 \
+    -o ServerAliveCountMax=3 \
+    -L 47892:localhost:47892 \
+    gratitude
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

@@ -2,6 +2,7 @@ import io
 import os
 import numpy as np
 import soundfile as sf
+import httpx
 from faster_whisper import WhisperModel
 from openai import OpenAI
 
@@ -88,6 +89,25 @@ def transcribe_api(audio_data):
     )
     return response.text
 
+def transcribe_remote(audio_data):
+    """
+    Send audio to the local transcription server (reached via SSH tunnel) and return raw text.
+    """
+    byte_io = io.BytesIO()
+    sample_rate = ConfigManager.get_config_section('recording_options').get('sample_rate') or 16000
+    sf.write(byte_io, audio_data, sample_rate, format='wav')
+    byte_io.seek(0)
+
+    try:
+        response = httpx.post('http://localhost:47892/transcribe', content=byte_io.read(), timeout=30.0)
+        response.raise_for_status()
+        return response.json()['text']
+    except httpx.ConnectError:
+        raise RuntimeError('Could not connect to transcription server at localhost:47892 — is the SSH tunnel up?')
+    except Exception as e:
+        raise RuntimeError(f'Remote transcription failed: {e}')
+
+
 def post_process_transcription(transcription):
     """
     Apply post-processing to the transcription.
@@ -105,12 +125,14 @@ def post_process_transcription(transcription):
 
 def transcribe(audio_data, local_model=None):
     """
-    Transcribe audio date using the OpenAI API or a local model, depending on config.
+    Transcribe audio using the remote server, OpenAI API, or a local model, depending on config/env.
     """
     if audio_data is None:
         return ''
 
-    if ConfigManager.get_config_value('model_options', 'use_api'):
+    if os.environ.get('WW_USE_REMOTE'):
+        transcription = transcribe_remote(audio_data)
+    elif ConfigManager.get_config_value('model_options', 'use_api'):
         transcription = transcribe_api(audio_data)
     else:
         transcription = transcribe_local(audio_data, local_model)
