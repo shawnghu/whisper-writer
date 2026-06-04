@@ -48,9 +48,8 @@ class WhisperWriterApp(QObject):
         self.key_listener.add_callback("on_activate", self.on_activation)
         self.key_listener.add_callback("on_deactivate", self.on_deactivation)
 
-        model_options = ConfigManager.get_config_section('model_options')
         use_remote = bool(os.environ.get('WW_USE_REMOTE'))
-        self.local_model = create_local_model() if not model_options.get('use_api') and not use_remote else None
+        self.local_model = None if use_remote else create_local_model()
 
         self.result_thread = None
 

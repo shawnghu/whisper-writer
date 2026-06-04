@@ -4,10 +4,8 @@ import socket
 import sys
 import subprocess
 import time
-from dotenv import load_dotenv
 
 print('Starting WhisperWriter...')
-load_dotenv()
 
 parser = argparse.ArgumentParser(description='WhisperWriter')
 parser.add_argument('--server', action='store_true',

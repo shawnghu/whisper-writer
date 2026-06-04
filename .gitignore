@@ -130,3 +130,9 @@ dmypy.json
 
 # Configuration files
 config.yaml
+
+*.un~
+*.swp
+*.swo
+*.swn
+

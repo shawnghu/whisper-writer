@@ -1,9 +1,8 @@
 import os
 import sys
-from dotenv import set_key, load_dotenv
 from PyQt5.QtWidgets import (
     QApplication, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QComboBox, QCheckBox,
-    QMessageBox, QTabWidget, QWidget, QSizePolicy, QSpacerItem, QToolButton, QStyle, QFileDialog
+    QMessageBox, QTabWidget, QWidget, QSizePolicy, QSpacerItem, QToolButton, QStyle
 )
 from PyQt5.QtCore import Qt, QCoreApplication, QProcess, pyqtSignal
 
@@ -11,7 +10,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from ui.base_window import BaseWindow
 from utils import ConfigManager
 
-load_dotenv()
 
 class SettingsWindow(BaseWindow):
     settings_closed = pyqtSignal()
@@ -30,12 +28,6 @@ class SettingsWindow(BaseWindow):
 
         self.create_tabs()
         self.create_buttons()
-
-        # Connect the use_api checkbox state change
-        self.use_api_checkbox = self.findChild(QCheckBox, 'model_options_use_api_input')
-        if self.use_api_checkbox:
-            self.use_api_checkbox.stateChanged.connect(lambda: self.toggle_api_local_options(self.use_api_checkbox.isChecked()))
-            self.toggle_api_local_options(self.use_api_checkbox.isChecked())
 
     def create_tabs(self):
         """Create tabs for each category in the schema."""
@@ -80,28 +72,17 @@ class SettingsWindow(BaseWindow):
         help_button = self.create_help_button(meta.get('description', ''))
 
         item_layout.addWidget(label)
-        if isinstance(widget, QWidget):
-            item_layout.addWidget(widget)
-        else:
-            item_layout.addLayout(widget)
+        item_layout.addWidget(widget)
         item_layout.addWidget(help_button)
         layout.addLayout(item_layout)
 
-        # Set object names for the widget, label, and help button
         widget_name = f"{category}_{sub_category}_{key}_input" if sub_category else f"{category}_{key}_input"
         label_name = f"{category}_{sub_category}_{key}_label" if sub_category else f"{category}_{key}_label"
         help_name = f"{category}_{sub_category}_{key}_help" if sub_category else f"{category}_{key}_help"
-        
+
         label.setObjectName(label_name)
         help_button.setObjectName(help_name)
-        
-        if isinstance(widget, QWidget):
-            widget.setObjectName(widget_name)
-        else:
-            # If it's a layout (for model_path), set the object name on the QLineEdit
-            line_edit = widget.itemAt(0).widget()
-            if isinstance(line_edit, QLineEdit):
-                line_edit.setObjectName(widget_name)
+        widget.setObjectName(widget_name)
 
     def create_widget_for_type(self, key, meta, category, sub_category):
         """Create a widget based on the meta type."""
@@ -109,43 +90,24 @@ class SettingsWindow(BaseWindow):
         current_value = self.get_config_value(category, sub_category, key, meta)
 
         if meta_type == 'bool':
-            return self.create_checkbox(current_value, key)
+            return self.create_checkbox(current_value)
         elif meta_type == 'str' and 'options' in meta:
             return self.create_combobox(current_value, meta['options'])
         elif meta_type == 'str':
-            return self.create_line_edit(current_value, key)
+            return QLineEdit(current_value or '')
         elif meta_type in ['int', 'float']:
-            return self.create_line_edit(str(current_value))
+            return QLineEdit(str(current_value))
         return None
 
-    def create_checkbox(self, value, key):
+    def create_checkbox(self, value):
         widget = QCheckBox()
         widget.setChecked(value)
-        if key == 'use_api':
-            widget.setObjectName('model_options_use_api_input')
         return widget
 
     def create_combobox(self, value, options):
         widget = QComboBox()
         widget.addItems(options)
         widget.setCurrentText(value)
-        return widget
-
-    def create_line_edit(self, value, key=None):
-        widget = QLineEdit(value)
-        if key == 'api_key':
-            widget.setEchoMode(QLineEdit.Password)
-            widget.setText(os.getenv('OPENAI_API_KEY') or value)
-        elif key == 'model_path':
-            layout = QHBoxLayout()
-            layout.addWidget(widget)
-            browse_button = QPushButton('Browse')
-            browse_button.clicked.connect(lambda: self.browse_model_path(widget))
-            layout.addWidget(browse_button)
-            layout.setContentsMargins(0, 0, 0, 0)
-            container = QWidget()
-            container.setLayout(layout)
-            return container
         return widget
 
     def create_help_button(self, description):
@@ -163,27 +125,12 @@ class SettingsWindow(BaseWindow):
             return ConfigManager.get_config_value(category, sub_category, key) or meta['value']
         return ConfigManager.get_config_value(category, key) or meta['value']
 
-    def browse_model_path(self, widget):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Select Whisper Model File", "", "Model Files (*.bin);;All Files (*)")
-        if file_path:
-            widget.setText(file_path)
-
     def show_description(self, description):
-        """Show a description dialog."""
         QMessageBox.information(self, 'Description', description)
 
     def save_settings(self):
-        """Save the settings to the config file and .env file."""
+        """Save the settings to the config file."""
         self.iterate_settings(self.save_setting)
-
-        # Save the API key to the .env file
-        api_key = ConfigManager.get_config_value('model_options', 'api', 'api_key') or ''
-        set_key('.env', 'OPENAI_API_KEY', api_key)
-        os.environ['OPENAI_API_KEY'] = api_key
-
-        # Remove the API key from the config
-        ConfigManager.set_config_value(None, 'model_options', 'api', 'api_key')
-
         ConfigManager.save_config()
         QMessageBox.information(self, 'Settings Saved', 'Settings have been saved. The application will now restart.')
         self.settings_saved.emit()
@@ -202,34 +149,24 @@ class SettingsWindow(BaseWindow):
         self.update_widgets_from_config()
 
     def update_widgets_from_config(self):
-        """Update all widgets with values from the current configuration."""
         self.iterate_settings(self.update_widget_value)
 
     def update_widget_value(self, widget, category, sub_category, key, meta):
-        """Update a single widget with the value from the configuration."""
         if sub_category:
             config_value = ConfigManager.get_config_value(category, sub_category, key)
         else:
             config_value = ConfigManager.get_config_value(category, key)
-
         self.set_widget_value(widget, config_value, meta.get('type'))
 
     def set_widget_value(self, widget, value, value_type):
-        """Set the value of the widget."""
         if isinstance(widget, QCheckBox):
             widget.setChecked(value)
         elif isinstance(widget, QComboBox):
             widget.setCurrentText(value)
         elif isinstance(widget, QLineEdit):
             widget.setText(str(value) if value is not None else '')
-        elif isinstance(widget, QWidget) and widget.layout():
-            # This is for the model_path widget
-            line_edit = widget.layout().itemAt(0).widget()
-            if isinstance(line_edit, QLineEdit):
-                line_edit.setText(str(value) if value is not None else '')
 
     def get_widget_value_typed(self, widget, value_type):
-        """Get the value of the widget with proper typing."""
         if isinstance(widget, QCheckBox):
             return widget.isChecked()
         elif isinstance(widget, QComboBox):
@@ -242,30 +179,7 @@ class SettingsWindow(BaseWindow):
                 return float(text) if text else None
             else:
                 return text or None
-        elif isinstance(widget, QWidget) and widget.layout():
-            # This is for the model_path widget
-            line_edit = widget.layout().itemAt(0).widget()
-            if isinstance(line_edit, QLineEdit):
-                return line_edit.text() or None
         return None
-
-    def toggle_api_local_options(self, use_api):
-        """Toggle visibility of API and local options."""
-        self.iterate_settings(lambda w, c, s, k, m: self.toggle_widget_visibility(w, c, s, k, use_api))
-
-    def toggle_widget_visibility(self, widget, category, sub_category, key, use_api):
-        if sub_category in ['api', 'local']:
-            widget.setVisible(use_api if sub_category == 'api' else not use_api)
-            
-            # Also toggle visibility of the corresponding label and help button
-            label = self.findChild(QLabel, f"{category}_{sub_category}_{key}_label")
-            help_button = self.findChild(QToolButton, f"{category}_{sub_category}_{key}_help")
-            
-            if label:
-                label.setVisible(use_api if sub_category == 'api' else not use_api)
-            if help_button:
-                help_button.setVisible(use_api if sub_category == 'api' else not use_api)
-
 
     def iterate_settings(self, func):
         """Iterate over all settings and apply a function to each."""
@@ -282,7 +196,6 @@ class SettingsWindow(BaseWindow):
                             func(widget, category, sub_category, key, meta)
 
     def closeEvent(self, event):
-        """Confirm before closing the settings window without saving."""
         reply = QMessageBox.question(
             self,
             'Close without saving?',
@@ -292,7 +205,7 @@ class SettingsWindow(BaseWindow):
         )
 
         if reply == QMessageBox.Yes:
-            ConfigManager.reload_config()  # Revert to last saved configuration
+            ConfigManager.reload_config()
             self.update_widgets_from_config()
             self.settings_closed.emit()
             super().closeEvent(event)
