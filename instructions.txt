@@ -1,0 +1,14 @@
+ On gratitude (desktop, once):
+  pip install fastapi uvicorn
+  python run.py --server
+  Binds to 127.0.0.1:8765. The SSH daemon forwards the tunnel there, nothing else can
+  reach it.
+
+  On the laptop — set up the auto-tunnel (once):
+  sudo apt install autossh
+  cp systemd/whisper-writer-tunnel.service ~/.config/systemd/user/
+  systemctl --user enable --now whisper-writer-tunnel.service
+
+  On the laptop — run whisper-writer:
+  python run.py --remote
+
